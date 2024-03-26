@@ -1,20 +1,32 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/go-resty/resty/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"time"
+)
+
+var (
+	responseTime1 = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "response_time_1",
+		Help: "Response time for the f1 (ms)",
+	})
+	responseTime2 = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "response_time_2",
+		Help: "Response time for the f2 (ms)",
+	})
+	host    = os.Getenv("HOST")
+	port    = os.Getenv("PORT")
+	f1Name  = os.Getenv("F1NAME")
+	f2Name  = os.Getenv("F2NAME")
+	program = os.Getenv("PROGRAM")
 )
 
 func main() {
 	// input from bash, at least contains an empty string + Env
 	input := os.Args[1]
-	host := os.Getenv("HOST")
-	port := os.Getenv("PORT")
-	f1Name := os.Getenv("F1NAME")
-	f2Name := os.Getenv("F2NAME")
 
 	// make a resty client
 	client := resty.New()
@@ -64,16 +76,19 @@ func main() {
 	// stdout
 	fmt.Printf("%s took %v and %s took %v\n", f1Name, elap1, f2Name, elap2)
 	fmt.Printf("resp1: %s \n resp2: %s\n", resp1, resp2)
+
+	// Push the updated metric to Pushgateway
+	if err = PushResponseTime(responseTime1, elap1); err != nil {
+		fmt.Println("Failed to push response_time_1 to Pushgateway:", err)
+	}
+
+	if err = PushResponseTime(responseTime2, elap2); err != nil {
+		fmt.Println("Failed to push response_time_2 to Pushgateway:", err)
+		//return
+	}
 }
 
-func checkResponse(fn func() (*resty.Response, error, time.Duration)) (string, error, time.Duration) {
-	resp, err, runTime := fn()
-	if err != nil {
-		return "", err, runTime
-	}
-	if !resp.IsSuccess() {
-		msg := fmt.Sprintf("non-successful response (%d)", resp.StatusCode())
-		return "", errors.New(msg), runTime
-	}
-	return string(resp.Body()), nil, runTime
+func init() {
+	prometheus.MustRegister(responseTime1)
+	prometheus.MustRegister(responseTime2)
 }
