@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"math/big"
 	"os"
 	"time"
 )
@@ -17,7 +19,12 @@ var (
 		Name: "response_time_2",
 		Help: "Response time for the f2 (ms)",
 	})
-	host    = os.Getenv("HOST")
+	proxyTime = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "proxy_time",
+		Help: "Total proxy runtime (ms)",
+	})
+	client  = resty.New()       // make a resty client
+	host    = os.Getenv("HOST") // provided by agent in tf
 	port    = os.Getenv("PORT")
 	f1Name  = os.Getenv("F1NAME")
 	f2Name  = os.Getenv("F2NAME")
@@ -25,13 +32,60 @@ var (
 )
 
 func main() {
+	startProxy := time.Now()
 	// input from bash, at least contains an empty string + Env
 	input := os.Args[1]
 
-	// make a resty client
-	client := resty.New()
+	// Call one of the function versions
+	resp, err, elap := uniformCallAndLog(input)
 
-	// call f1
+	// stdout
+	fmt.Printf("resp: %s \n took: %s\n", resp, elap)
+
+	// Push total proxy time
+	elapTotal := time.Since(startProxy)
+	if err = PushResponseTime(proxyTime, elapTotal); err != nil {
+		fmt.Println("Failed to push proxy_time to Pushgateway:", err)
+	}
+}
+
+// randomly calls one of the two functions
+func uniformCallAndLog(input string) (string, error, time.Duration) {
+	// Generate a random number (0 or 1)
+	choice, err := rand.Int(rand.Reader, big.NewInt(2))
+	if err != nil {
+		fmt.Println("Error generating random number:", err)
+		return "", err, 0
+	}
+
+	if choice.Int64() == 0 { // call f1
+		resp1, err1, elap1 := f1Call(input)
+		if err1 != nil {
+			fmt.Printf("error calling %s: %v\n", f1Name, err1)
+		}
+
+		// Push the updated metric to Pushgateway
+		if err = PushResponseTime(responseTime1, elap1); err != nil {
+			fmt.Println("Failed to push response_time_1 to Pushgateway:", err)
+		}
+		return resp1, err1, elap1
+	} else { // call f2
+		resp2, err2, elap2 := f2Call(input)
+		if err2 != nil {
+			fmt.Printf("error calling %s: %v\n", f2Name, err2)
+		}
+
+		// Push the updated metric to Pushgateway
+		if err = PushResponseTime(responseTime2, elap2); err != nil {
+			fmt.Println("Failed to push response_time_2 to Pushgateway:", err)
+		}
+
+		return resp2, err2, elap2
+	}
+}
+
+func f1Call(input string) (string, error, time.Duration) {
+
 	call1Response := func() (*resty.Response, error, time.Duration) {
 		start1 := time.Now()
 		resp1, err1 := client.R().
@@ -46,13 +100,11 @@ func main() {
 	}
 
 	// validate the response
-	resp1, err1, elap1 := checkResponse(call1Response)
-	if err1 != nil {
-		fmt.Printf("error calling %s: %v\n", f1Name, err1)
-		return
-	}
+	return checkResponse(call1Response)
+}
 
-	// call f2
+func f2Call(input string) (string, error, time.Duration) {
+
 	call2Response := func() (*resty.Response, error, time.Duration) {
 		start2 := time.Now()
 		resp2, err2 := client.R().
@@ -67,25 +119,7 @@ func main() {
 	}
 
 	// validate the response
-	resp2, err, elap2 := checkResponse(call2Response)
-	if err != nil {
-		fmt.Printf("error calling %s: %v\n", f2Name, err)
-		return
-	}
-
-	// stdout
-	fmt.Printf("%s took %v and %s took %v\n", f1Name, elap1, f2Name, elap2)
-	fmt.Printf("resp1: %s \n resp2: %s\n", resp1, resp2)
-
-	// Push the updated metric to Pushgateway
-	if err = PushResponseTime(responseTime1, elap1); err != nil {
-		fmt.Println("Failed to push response_time_1 to Pushgateway:", err)
-	}
-
-	if err = PushResponseTime(responseTime2, elap2); err != nil {
-		fmt.Println("Failed to push response_time_2 to Pushgateway:", err)
-		//return
-	}
+	return checkResponse(call2Response)
 }
 
 func init() {
