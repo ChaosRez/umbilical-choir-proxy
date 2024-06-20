@@ -29,7 +29,7 @@ func PushResponseTime(metric prometheus.Gauge, duration time.Duration) error {
 	metric.Set(float64(duration) / float64(time.Millisecond))
 
 	// Set job and groupings (optional)
-	pusher.Grouping("instance", program)
+	pusher.Grouping("program", program)
 
 	return pusher.Collector(metric).Add()
 }
