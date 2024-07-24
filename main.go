@@ -4,25 +4,13 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/go-resty/resty/v2"
-	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"math/big"
 	"os"
 	"time"
 )
 
 var (
-	responseTime1 = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "response_time_1",
-		Help: "Response time for the f1 (ms)",
-	})
-	responseTime2 = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "response_time_2",
-		Help: "Response time for the f2 (ms)",
-	})
-	proxyTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "proxy_time",
-		Help: "Total proxy runtime (ms)",
-	})
 	client  = resty.New()       // make a resty client
 	host    = os.Getenv("HOST") // provided by agent in tf
 	port    = os.Getenv("PORT")
@@ -37,25 +25,54 @@ func main() {
 	input := os.Args[1]
 
 	// Call one of the function versions
-	resp, err, elap := uniformCallAndLog(input)
+	resp, err, elap, isF2 := uniformCallAndLog(input)
+	if err != nil {
+		log.Fatal("error running uniformCallAndLog:", err)
+		return
+	}
 
 	// stdout
 	fmt.Printf("resp: %s \n took: %s\n", resp, elap)
 
 	// Push total proxy time
 	elapTotal := time.Since(startProxy)
-	if err = PushResponseTime(proxyTime, elapTotal); err != nil {
-		fmt.Println("Failed to push proxy_time to Pushgateway:", err)
+
+	payload := MetricUpdatePayload{
+		Job:     "umbilical-choir",
+		Program: program,
+		Metrics: []Metric{
+			{MetricName: "call_count", Value: 1},
+			{MetricName: "proxy_time", Value: float64(elapTotal) / float64(time.Millisecond)},
+		},
+	}
+
+	// append metrics
+	if isF2 { // f2 was called and not f1
+		newMetric1 := Metric{MetricName: "f2_count", Value: 1}
+		newMetric2 := Metric{MetricName: "f2_time", Value: float64(elap) / float64(time.Millisecond)}
+		payload.Metrics = append(payload.Metrics, newMetric1)
+		payload.Metrics = append(payload.Metrics, newMetric2)
+	} else {
+		newMetric1 := Metric{MetricName: "f1_count", Value: 1}
+		newMetric2 := Metric{MetricName: "f1_time", Value: float64(elap) / float64(time.Millisecond)}
+		payload.Metrics = append(payload.Metrics, newMetric1)
+		payload.Metrics = append(payload.Metrics, newMetric2)
+	}
+
+	// Push metrics to the aggregator
+	errMetric := SendMetrics(host, 9999, payload)
+	if errMetric != nil {
+		fmt.Printf("Error sending metrics: %v\n", errMetric)
 	}
 }
 
-// randomly calls one of the two functions
-func uniformCallAndLog(input string) (string, error, time.Duration) {
+// randomly calls one of the two functions. Returns the response, error, elapsed time, and a boolean indicating which function was called
+func uniformCallAndLog(input string) (string, error, time.Duration, bool) {
 	// Generate a random number (0 or 1)
 	choice, err := rand.Int(rand.Reader, big.NewInt(2))
 	if err != nil {
 		fmt.Println("Error generating random number:", err)
-		return "", err, 0
+		return "", err, 0, false
 	}
 
 	if choice.Int64() == 0 { // call f1
@@ -64,23 +81,13 @@ func uniformCallAndLog(input string) (string, error, time.Duration) {
 			fmt.Printf("error calling %s: %v\n", f1Name, err1)
 		}
 
-		// Push the updated metric to Pushgateway
-		if err = PushResponseTime(responseTime1, elap1); err != nil {
-			fmt.Println("Failed to push response_time_1 to Pushgateway:", err)
-		}
-		return resp1, err1, elap1
+		return resp1, err1, elap1, false
 	} else { // call f2
 		resp2, err2, elap2 := f2Call(input)
 		if err2 != nil {
 			fmt.Printf("error calling %s: %v\n", f2Name, err2)
 		}
-
-		// Push the updated metric to Pushgateway
-		if err = PushResponseTime(responseTime2, elap2); err != nil {
-			fmt.Println("Failed to push response_time_2 to Pushgateway:", err)
-		}
-
-		return resp2, err2, elap2
+		return resp2, err2, elap2, true
 	}
 }
 
@@ -120,9 +127,4 @@ func f2Call(input string) (string, error, time.Duration) {
 
 	// validate the response
 	return checkResponse(call2Response)
-}
-
-func init() {
-	prometheus.MustRegister(responseTime1)
-	prometheus.MustRegister(responseTime2)
 }

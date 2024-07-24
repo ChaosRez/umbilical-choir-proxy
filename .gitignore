@@ -1,3 +1,4 @@
 .idea
 sample/
-binary/
+binary/*bash*
+binary/*/umbilical-choir-proxy
