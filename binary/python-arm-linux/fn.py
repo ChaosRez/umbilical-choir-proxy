@@ -12,11 +12,15 @@ def fn(input: typing.Optional[str]) -> typing.Optional[str]:
     if input is None:
         input = ""  # Replace None with an empty string if necessary
     with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = []
         # Push the counter to the Pushgateway in a new thread
         future_push = executor.submit(push_to_pushgateway, Counter.get_count())
+        futures.append(future_push)
 
         future_proxy = executor.submit(run_proxy, input)
-        for future in as_completed([future_push, future_proxy]):
+        futures.append(future_proxy)
+        result_stdout = None
+        for future in as_completed(futures):
             if future == future_proxy:
                 result = future.result()
                 if result.returncode != 0:

@@ -24,12 +24,22 @@ func checkResponse(fn func() (*resty.Response, error, time.Duration)) (string, e
 	return string(resp.Body()), nil, runTime
 }
 
-func PushResponseTime(metric prometheus.Gauge, duration time.Duration) error {
-	// Update the metric locally
-	metric.Set(float64(duration) / float64(time.Millisecond))
+//func PushResponseTime(metric prometheus.Gauge, duration time.Duration) error {
+//	// Update the metric locally
+//	metric.Set(float64(duration) / float64(time.Millisecond))
+//
+//	// Set job and groupings (optional)
+//	pusher.Grouping("program", program)
+//
+//	return pusher.Collector(metric).Add()
+//}
 
+func PushMetrics(metrics ...prometheus.Gauge) error {
 	// Set job and groupings (optional)
 	pusher.Grouping("program", program)
 
-	return pusher.Collector(metric).Add()
+	for _, metric := range metrics {
+		pusher.Collector(metric)
+	}
+	return pusher.Add()
 }
