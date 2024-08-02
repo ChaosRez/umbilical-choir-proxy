@@ -17,6 +17,7 @@ var (
 	f1Name  = os.Getenv("F1NAME")
 	f2Name  = os.Getenv("F2NAME")
 	program = os.Getenv("PROGRAM")
+	client     = resty.New().SetTimeout(500 * time.Millisecond) // make a resty client
 )
 
 func main() {
