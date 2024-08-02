@@ -7,17 +7,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"math/big"
 	"os"
+	"strconv"
 	"time"
 )
 
 var (
-	client  = resty.New()       // make a resty client
-	host    = os.Getenv("HOST") // provided by agent in tf
-	port    = os.Getenv("PORT")
-	f1Name  = os.Getenv("F1NAME")
-	f2Name  = os.Getenv("F2NAME")
-	program = os.Getenv("PROGRAM")
 	client     = resty.New().SetTimeout(500 * time.Millisecond) // make a resty client
+	host       = os.Getenv("HOST")                              // provided by agent in tf
+	port       = os.Getenv("PORT")
+	f1Name     = os.Getenv("F1NAME")
+	f2Name     = os.Getenv("F2NAME")
+	program    = os.Getenv("PROGRAM")
+	bChanceStr = os.Getenv("BCHANCE")
+	bChance    int
 )
 
 func main() {
@@ -25,21 +27,18 @@ func main() {
 	// input from bash, at least contains an empty string + Env
 	input := os.Args[1]
 
-	// Call one of the function versions
-	resp, err, elap, isF2 := uniformCallAndLog(input)
-	if err != nil {
-		log.Fatal("error running uniformCallAndLog:", err)
-		return
-	}
+	// Randomly call one of the function versions
+	resp, err, elap, isF2 := randomCallAndLog(input, bChance)
 
 	// stdout
-	fmt.Printf("resp: %s \n took: %s\n", resp, elap)
+	if err == nil {
+		fmt.Printf("resp: %s \n took: %s\n", resp, elap)
+	}
 
 	// Push total proxy time
 	elapTotal := time.Since(startProxy)
 
 	payload := MetricUpdatePayload{
-		Job:     "umbilical-choir",
 		Program: program,
 		Metrics: []Metric{
 			{MetricName: "call_count", Value: 1},
@@ -50,14 +49,26 @@ func main() {
 	// append metrics
 	if isF2 { // f2 was called and not f1
 		newMetric1 := Metric{MetricName: "f2_count", Value: 1}
-		newMetric2 := Metric{MetricName: "f2_time", Value: float64(elap) / float64(time.Millisecond)}
 		payload.Metrics = append(payload.Metrics, newMetric1)
-		payload.Metrics = append(payload.Metrics, newMetric2)
+		if err != nil { // error running randomCallAndLog
+			newMetric2 := Metric{MetricName: "f2_error_count", Value: 1}
+			payload.Metrics = append(payload.Metrics, newMetric2)
+			log.Error("error running f2:", err)
+		} else {
+			newMetric2 := Metric{MetricName: "f2_time", Value: float64(elap) / float64(time.Millisecond)}
+			payload.Metrics = append(payload.Metrics, newMetric2)
+		}
 	} else {
 		newMetric1 := Metric{MetricName: "f1_count", Value: 1}
-		newMetric2 := Metric{MetricName: "f1_time", Value: float64(elap) / float64(time.Millisecond)}
 		payload.Metrics = append(payload.Metrics, newMetric1)
-		payload.Metrics = append(payload.Metrics, newMetric2)
+		if err != nil { // error running randomCallAndLog
+			newMetric2 := Metric{MetricName: "f1_error_count", Value: 1}
+			payload.Metrics = append(payload.Metrics, newMetric2)
+			log.Error("error running f1:", err)
+		} else {
+			newMetric2 := Metric{MetricName: "f1_time", Value: float64(elap) / float64(time.Millisecond)}
+			payload.Metrics = append(payload.Metrics, newMetric2)
+		}
 	}
 
 	// Push metrics to the aggregator
@@ -68,27 +79,28 @@ func main() {
 }
 
 // randomly calls one of the two functions. Returns the response, error, elapsed time, and a boolean indicating which function was called
-func uniformCallAndLog(input string) (string, error, time.Duration, bool) {
-	// Generate a random number (0 or 1)
-	choice, err := rand.Int(rand.Reader, big.NewInt(2))
+func randomCallAndLog(input string, bChance int) (string, error, time.Duration, bool) {
+	// Generate a random number between 0 and 100
+	choice, err := rand.Int(rand.Reader, big.NewInt(100))
 	if err != nil {
 		fmt.Println("Error generating random number:", err)
 		return "", err, 0, false // FIXME: this will be counted as f1 errors
 	}
 
-	if choice.Int64() == 0 { // call f1
-		resp1, err1, elap1 := f1Call(input)
-		if err1 != nil {
-			fmt.Printf("error calling %s: %v\n", f1Name, err1)
-		}
-
-		return resp1, err1, elap1, false
-	} else { // call f2
+	// Choose a function version to call
+	if choice.Int64() < int64(bChance) { // call f2
 		resp2, err2, elap2 := f2Call(input)
 		if err2 != nil {
 			fmt.Printf("error calling %s: %v\n", f2Name, err2)
 		}
 		return resp2, err2, elap2, true
+
+	} else { // call f1
+		resp1, err1, elap1 := f1Call(input)
+		if err1 != nil {
+			fmt.Printf("error calling %s: %v\n", f1Name, err1)
+		}
+		return resp1, err1, elap1, false
 	}
 }
 
@@ -128,4 +140,12 @@ func f2Call(input string) (string, error, time.Duration) {
 
 	// validate the response
 	return checkResponse(call2Response)
+}
+
+func init() {
+	var err error
+	bChance, err = strconv.Atoi(bChanceStr)
+	if err != nil {
+		log.Fatalf("Error converting BCHANCE '%v' to int: %v", bChanceStr, err)
+	}
 }
