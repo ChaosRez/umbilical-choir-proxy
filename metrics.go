@@ -15,12 +15,11 @@ type Metric struct {
 
 // Payload structure
 type MetricUpdatePayload struct {
-	Job     string   `json:"job"`
 	Program string   `json:"program"`
 	Metrics []Metric `json:"metrics"`
 }
 
-// sends metrics
+// sends metrics to the Agent's aggregator
 func SendMetrics(host string, port int, payload MetricUpdatePayload) error {
 
 	// Marshal the payload to JSON
