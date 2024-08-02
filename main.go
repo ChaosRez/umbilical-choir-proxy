@@ -63,7 +63,7 @@ func main() {
 	// Push metrics to the aggregator
 	errMetric := SendMetrics(host, 9999, payload)
 	if errMetric != nil {
-		fmt.Printf("Error sending metrics: %v\n", errMetric)
+		log.Fatalf("Error sending metrics: %v\n", errMetric)
 	}
 }
 
@@ -73,7 +73,7 @@ func uniformCallAndLog(input string) (string, error, time.Duration, bool) {
 	choice, err := rand.Int(rand.Reader, big.NewInt(2))
 	if err != nil {
 		fmt.Println("Error generating random number:", err)
-		return "", err, 0, false
+		return "", err, 0, false // FIXME: this will be counted as f1 errors
 	}
 
 	if choice.Int64() == 0 { // call f1
