@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import typing
 import subprocess
 import os
 
-def fn(input: typing.Optional[str]) -> typing.Optional[str]:
+def fn(request):
     """Call the 'umbilical-choir-proxy' binary with the 'input' as an input argument."""
+    input = request.data.decode("utf-8")
     print(f"Call {Counter.increment_count()} with input: {input}")
     if input is None:
         input = ""  # Replace None with an empty string if necessary
@@ -21,6 +21,7 @@ def run_proxy(input: str):
     return subprocess.run(["./umbilical-choir-proxy", input], capture_output=True, text=True)
 
 
+# NOTE kept this counter only for running chmod once! otherwise it is not needed anymore
 class Counter:
     count = None
     first_call = True

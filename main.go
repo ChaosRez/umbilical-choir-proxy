@@ -13,8 +13,9 @@ import (
 
 var (
 	client     = resty.New().SetTimeout(500 * time.Millisecond) // make a resty client
-	host       = os.Getenv("HOST")                              // provided by agent in tf
-	port       = os.Getenv("PORT")
+	f1Uri      = os.Getenv("F1ENDPOINT")                        // provided by agent in tf
+	f2Uri      = os.Getenv("F2ENDPOINT")
+	agentHost  = os.Getenv("AGENTHOST")
 	f1Name     = os.Getenv("F1NAME")
 	f2Name     = os.Getenv("F2NAME")
 	program    = os.Getenv("PROGRAM")
@@ -72,7 +73,7 @@ func main() {
 	}
 
 	// Push metrics to the aggregator
-	errMetric := SendMetrics(host, 9999, payload)
+	errMetric := SendMetrics(agentHost, 9999, payload)
 	if errMetric != nil {
 		log.Fatalf("Error sending metrics: %v\n", errMetric)
 	}
@@ -109,9 +110,9 @@ func f1Call(input string) (string, error, time.Duration) {
 	call1Response := func() (*resty.Response, error, time.Duration) {
 		start1 := time.Now()
 		resp1, err1 := client.R().
-			EnableTrace().
+			//EnableTrace().
 			SetBody(input).
-			Post(fmt.Sprintf("http://%s:%s/%s", host, port, f1Name))
+			Post(f1Uri)
 		elap1 := time.Since(start1)
 		if err1 != nil {
 			return nil, err1, elap1
@@ -128,9 +129,9 @@ func f2Call(input string) (string, error, time.Duration) {
 	call2Response := func() (*resty.Response, error, time.Duration) {
 		start2 := time.Now()
 		resp2, err2 := client.R().
-			EnableTrace().
+			//EnableTrace().
 			SetBody(input).
-			Post(fmt.Sprintf("http://%s:%s/%s", host, port, f2Name))
+			Post(f2Uri)
 		elap2 := time.Since(start2)
 		if err2 != nil {
 			return nil, err2, elap2
