@@ -169,3 +169,13 @@ func init() {
 		log.Fatalf("Error converting BCHANCE '%v' to int: %v", bChanceStr, err)
 	}
 }
+
+// wiki:
+//// Access the trace information
+//traceInfo := resp.Request.TraceInfo()
+//fmt.Printf("DNS Lookup: %v\n", traceInfo.DNSLookup)
+//fmt.Printf("TCP Connection: %v\n", traceInfo.ConnTime)
+//fmt.Printf("TLS Handshake: %v\n", traceInfo.TLSHandshake)
+//fmt.Printf("Server Processing: %v\n", traceInfo.ServerTime)
+//fmt.Printf("Response Time: %v\n", traceInfo.ResponseTime)
+//fmt.Printf("Total Time: %v\n", traceInfo.TotalTime)
