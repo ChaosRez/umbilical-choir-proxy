@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+import typing
 import subprocess
 import os
 
-def fn(request):
+def fn(input: typing.Optional[str], headers: typing.Optional[typing.Dict[str, str]]) -> typing.Optional[str]:
     """Call the 'umbilical-choir-proxy' binary with the 'input' as an input argument."""
     print(f"Call {Counter.increment_count()} with input: {input}")
     if input is None:
