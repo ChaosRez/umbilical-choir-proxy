@@ -27,9 +27,28 @@ func main() {
 	startProxy := time.Now()
 	// input from bash, at least contains an empty string + Env
 	input := os.Args[1]
+	functionChoice := ""
+	if len(os.Args) > 2 {
+		functionChoice = os.Args[2]
+	}
 
-	// Randomly call one of the function versions
-	resp, err, elap, isF2 := randomCallAndLog(input, bChance)
+	var resp string
+	var err error
+	var elap time.Duration
+	var isF2 bool
+
+	// Check the function choice
+	switch functionChoice {
+	case "f1":
+		resp, err, elap = f1Call(input)
+		isF2 = false
+	case "f2":
+		resp, err, elap = f2Call(input)
+		isF2 = true
+	default:
+		// Randomly call one of the function versions based on bChance
+		resp, err, elap, isF2 = randomCallAndLog(input, bChance)
+	}
 
 	// stdout
 	if err == nil {

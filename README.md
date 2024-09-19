@@ -14,3 +14,6 @@ GOOS=linux GOARCH=arm64 go build -o binary/python-arm-linux/umbilical-choir-prox
 GOOS=darwin GOARCH=arm64 go build -o binary/bash-m2/umbilical-choir-proxy .
 
 ```
+
+## HTTP header for A/B test
+For A/B testing with stateless FaaS functions, use the `X-Function-Version` header to specify the function version. This ensures the user stays on the same version, avoiding probabilistic selection.

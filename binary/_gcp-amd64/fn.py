@@ -5,20 +5,21 @@ import os
 
 def fn(request):
     """Call the 'umbilical-choir-proxy' binary with the 'input' as an input argument."""
-    input = request.data.decode("utf-8")
     print(f"Call {Counter.increment_count()} with input: {input}")
     if input is None:
         input = ""  # Replace None with an empty string if necessary
 
-    result = run_proxy(input)
+    function_choice = headers.get("X-Function-Choice", "") if headers else ""
+
+    result = run_proxy(input, function_choice)
     if result.returncode != 0:
         print(f"Error running binary proxy: {result.stderr}")
         return f"Error running binary proxy: {result.stderr}"
 
     return result.stdout
 
-def run_proxy(input: str):
-    return subprocess.run(["./umbilical-choir-proxy", input], capture_output=True, text=True)
+def run_proxy(input: str, function_choice: str):
+    return subprocess.run(["./umbilical-choir-proxy", input, function_choice], capture_output=True, text=True)
 
 
 # NOTE kept this counter only for running chmod once! otherwise it is not needed anymore
