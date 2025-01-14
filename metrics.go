@@ -48,6 +48,6 @@ func SendMetrics(host string, port int, payload MetricUpdatePayload) error {
 		return fmt.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
-	fmt.Println("Metrics sent successfully")
+	//fmt.Println("Metrics sent successfully")
 	return nil
 }
