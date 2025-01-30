@@ -34,26 +34,26 @@ func main() {
 
 	var resp string
 	var err error
-	var elap time.Duration
+	var funcCallLatency time.Duration
 	var isF2 bool
 
 	// Check the function choice
 	switch functionChoice {
 	case "f1":
-		resp, err, elap = f1Call(input)
+		resp, err, funcCallLatency = f1Call(input)
 		isF2 = false
 	case "f2":
-		resp, err, elap = f2Call(input)
+		resp, err, funcCallLatency = f2Call(input)
 		isF2 = true
 	default:
 		// Randomly call one of the function versions based on bChance
-		resp, err, elap, isF2 = randomCallAndLog(input, bChance)
+		resp, err, funcCallLatency, isF2 = randomCallAndLog(input, bChance)
 	}
 
 	// stdout
-	if err == nil {
-		fmt.Printf("resp: %s \n took: %s\n", resp, elap)
-	}
+	//if err == nil {
+	//	fmt.Printf("resp: %s \n took: %s\n", resp, funcCallLatency)
+	//}
 
 	// Push total proxy time
 	elapTotal := time.Since(startProxy)
@@ -75,7 +75,7 @@ func main() {
 			payload.Metrics = append(payload.Metrics, newMetric2)
 			log.Error("error running f2:", err)
 		} else {
-			newMetric2 := Metric{MetricName: "f2_time", Value: float64(elap) / float64(time.Millisecond)}
+			newMetric2 := Metric{MetricName: "f2_time", Value: float64(funcCallLatency) / float64(time.Millisecond)}
 			payload.Metrics = append(payload.Metrics, newMetric2)
 		}
 	} else {
@@ -86,16 +86,22 @@ func main() {
 			payload.Metrics = append(payload.Metrics, newMetric2)
 			log.Error("error running f1:", err)
 		} else {
-			newMetric2 := Metric{MetricName: "f1_time", Value: float64(elap) / float64(time.Millisecond)}
+			newMetric2 := Metric{MetricName: "f1_time", Value: float64(funcCallLatency) / float64(time.Millisecond)}
 			payload.Metrics = append(payload.Metrics, newMetric2)
 		}
 	}
 
 	// Push metrics to the aggregator
+	startMetric := time.Now()
 	errMetric := SendMetrics(agentHost, 9999, payload)
+	elapMetric := time.Since(startMetric)
+
 	if errMetric != nil {
-		log.Fatalf("Error sending metrics: %v\n", errMetric)
+		log.Errorf("Error sending metrics: %v", errMetric)
 	}
+
+	fmt.Printf("resp: %s \nfunc call took: %s\n", resp, funcCallLatency)
+	fmt.Printf("SendMetrics took: %s", elapMetric)
 }
 
 // randomly calls one of the two functions. Returns the response, error, elapsed time, and a boolean indicating which function was called
@@ -140,7 +146,7 @@ func f1Call(input string) (string, error, time.Duration) {
 	}
 
 	// validate the response
-	return checkResponse(call1Response)
+	return checkResponseAndReturnBody(call1Response)
 }
 
 func f2Call(input string) (string, error, time.Duration) {
@@ -159,7 +165,7 @@ func f2Call(input string) (string, error, time.Duration) {
 	}
 
 	// validate the response
-	return checkResponse(call2Response)
+	return checkResponseAndReturnBody(call2Response)
 }
 
 func init() {

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func checkResponse(fn func() (*resty.Response, error, time.Duration)) (string, error, time.Duration) {
+func checkResponseAndReturnBody(fn func() (*resty.Response, error, time.Duration)) (string, error, time.Duration) {
 	resp, err, runTime := fn()
 	if err != nil {
 		return "", err, runTime
