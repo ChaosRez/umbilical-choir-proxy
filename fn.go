@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/go-resty/resty/v2"
-	log "github.com/sirupsen/logrus"
 	"math/big"
 	"os"
 	"strconv"
@@ -23,17 +22,21 @@ var (
 	bChance    int
 )
 
-func main() {
+func fn(data string, headers map[string]string) (string, error) {
 	startProxy := time.Now()
-	// input from bash, at least contains an empty string + Env
-	input := os.Args[1]
-	functionChoice := ""
-	if len(os.Args) > 2 {
-		functionChoice = os.Args[2]
+	var err error
+	bChance, err = strconv.Atoi(bChanceStr)
+	if err != nil {
+		return "", fmt.Errorf("error converting BCHANCE '%v' to int: %v", bChanceStr, err)
 	}
 
+	fmt.Printf("Call with input: %s\n", data)
+
+	input := data
+	//functionChoice := ""
+	functionChoice := headers["X-Function-Choice"]
+
 	var resp string
-	var err error
 	var funcCallLatency time.Duration
 	var isF2 bool
 
@@ -73,7 +76,7 @@ func main() {
 		if err != nil { // error running randomCallAndLog
 			newMetric2 := Metric{MetricName: "f2_error_count", Value: 1}
 			payload.Metrics = append(payload.Metrics, newMetric2)
-			log.Error("error running f2:", err)
+			fmt.Errorf("error running f2:", err)
 		} else {
 			newMetric2 := Metric{MetricName: "f2_time", Value: float64(funcCallLatency) / float64(time.Millisecond)}
 			payload.Metrics = append(payload.Metrics, newMetric2)
@@ -84,7 +87,7 @@ func main() {
 		if err != nil { // error running randomCallAndLog
 			newMetric2 := Metric{MetricName: "f1_error_count", Value: 1}
 			payload.Metrics = append(payload.Metrics, newMetric2)
-			log.Error("error running f1:", err)
+			return "", fmt.Errorf("error running f1:", err)
 		} else {
 			newMetric2 := Metric{MetricName: "f1_time", Value: float64(funcCallLatency) / float64(time.Millisecond)}
 			payload.Metrics = append(payload.Metrics, newMetric2)
@@ -97,11 +100,11 @@ func main() {
 	elapMetric := time.Since(startMetric)
 
 	if errMetric != nil {
-		log.Errorf("Error sending metrics: %v", errMetric)
+		return "", fmt.Errorf("error sending metrics: %v", errMetric)
 	}
 
-	fmt.Printf("resp: %s \nfunc call took: %s\n", resp, funcCallLatency)
-	fmt.Printf("SendMetrics took: %s", elapMetric)
+	out := fmt.Sprintf("resp: %s \nfunc call took: %s\nSendMetrics took: %s", resp, funcCallLatency, elapMetric)
+	return out, nil
 }
 
 // randomly calls one of the two functions. Returns the response, error, elapsed time, and a boolean indicating which function was called
@@ -166,14 +169,6 @@ func f2Call(input string) (string, error, time.Duration) {
 
 	// validate the response
 	return checkResponseAndReturnBody(call2Response)
-}
-
-func init() {
-	var err error
-	bChance, err = strconv.Atoi(bChanceStr)
-	if err != nil {
-		log.Fatalf("Error converting BCHANCE '%v' to int: %v", bChanceStr, err)
-	}
 }
 
 // wiki:
